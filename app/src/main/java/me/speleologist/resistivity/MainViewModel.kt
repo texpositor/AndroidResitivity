@@ -1,7 +1,6 @@
 package me.speleologist.resistivity
 
 import android.annotation.SuppressLint
-import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
 import android.content.Context
@@ -14,7 +13,7 @@ import kotlinx.coroutines.launch
 
 class MainViewModel : ViewModel() {
     private val bluetoothService = BluetoothService()
-    
+
     private val _uiState = MutableStateFlow(UiState())
     val uiState: StateFlow<UiState> = _uiState
 
@@ -24,6 +23,7 @@ class MainViewModel : ViewModel() {
         val isConnected: Boolean = false,
         val latestData: MeasurementData? = null,
         val pairedDevices: List<BluetoothDevice> = emptyList(),
+        val logs: List<String> = emptyList(),
         val errorMessage: String? = null
     )
 
@@ -48,10 +48,8 @@ class MainViewModel : ViewModel() {
         }
     }
 
-    fun runCommand() {
-        viewModelScope.launch {
-            bluetoothService.sendRunCommand()
-        }
+    fun readChannels() {
+        bluetoothService.readChannels()
     }
 
     private fun startDataCollection() {
@@ -62,6 +60,16 @@ class MainViewModel : ViewModel() {
                     _uiState.value = _uiState.value.copy(latestData = data)
                 }
             }
+            launch {
+                bluetoothService.logs.collect { log ->
+                    val currentLogs = _uiState.value.logs.toMutableList()
+                    currentLogs.add(0, log) // Add to top
+                    if (currentLogs.size > 50) {
+                        currentLogs.removeAt(50)
+                    }
+                    _uiState.value = _uiState.value.copy(logs = currentLogs)
+                }
+            }
             bluetoothService.startDataLoop()
         }
     }
@@ -69,7 +77,11 @@ class MainViewModel : ViewModel() {
     fun disconnect() {
         dataJob?.cancel()
         bluetoothService.close()
-        _uiState.value = _uiState.value.copy(isConnected = false, latestData = null)
+        _uiState.value = _uiState.value.copy(
+            isConnected = false,
+            latestData = null,
+            logs = emptyList()
+        )
     }
 
     override fun onCleared() {

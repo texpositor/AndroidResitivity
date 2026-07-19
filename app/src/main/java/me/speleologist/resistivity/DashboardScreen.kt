@@ -13,6 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -32,8 +33,9 @@ fun ResistivityDashboard(viewModel: MainViewModel, modifier: Modifier = Modifier
         } else {
             MeasurementDisplay(
                 data = state.latestData,
+                logs = state.logs,
                 onDisconnect = { viewModel.disconnect() },
-                onRun = { viewModel.runCommand() }
+                onRun = { viewModel.readChannels() }
             )
         }
 
@@ -51,11 +53,20 @@ fun DeviceList(devices: List<BluetoothDevice>, onDeviceClick: (BluetoothDevice) 
     LazyColumn {
         items(devices) { device ->
             Card(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable { onDeviceClick(device) }
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp)
+                    .clickable { onDeviceClick(device) }
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text(text = device.name ?: "Unknown Device", fontWeight = FontWeight.Bold)
-                    Text(text = device.address, style = MaterialTheme.typography.bodySmall)
+                    Text(
+                        text = device.name ?: "Unknown Device",
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = device.address,
+                        style = MaterialTheme.typography.bodySmall
+                    )
                 }
             }
         }
@@ -63,7 +74,12 @@ fun DeviceList(devices: List<BluetoothDevice>, onDeviceClick: (BluetoothDevice) 
 }
 
 @Composable
-fun MeasurementDisplay(data: MeasurementData?, onDisconnect: () -> Unit, onRun: () -> Unit) {
+fun MeasurementDisplay(
+    data: MeasurementData?,
+    logs: List<String>,
+    onDisconnect: () -> Unit,
+    onRun: () -> Unit
+) {
     Column(modifier = Modifier.fillMaxSize()) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -72,7 +88,12 @@ fun MeasurementDisplay(data: MeasurementData?, onDisconnect: () -> Unit, onRun: 
         ) {
             Text("Live Data", style = MaterialTheme.typography.headlineMedium)
             Row {
-                Button(onClick = onRun, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))) {
+                Button(
+                    onClick = onRun,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF4CAF50)
+                    )
+                ) {
                     Text("RUN")
                 }
                 Spacer(modifier = Modifier.width(8.dp))
@@ -81,24 +102,60 @@ fun MeasurementDisplay(data: MeasurementData?, onDisconnect: () -> Unit, onRun: 
                 }
             }
         }
-        
+
         Spacer(modifier = Modifier.height(16.dp))
 
-        if (data == null) {
-            Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+        if (data == null && logs.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                contentAlignment = Alignment.Center
+            ) {
                 CircularProgressIndicator()
             }
         } else {
-            DataCard(label = "Channel", value = data.channel.toString())
-            DataCard(label = "Voltage", value = "%.4f V".format(data.voltage))
-            DataCard(label = "Current", value = "%.2f mA".format(data.current_ma))
-            DataCard(label = "Direction", value = data.direction)
-            DataCard(label = "Average Voltage", value = "%.4f V".format(data.average_voltage))
-            DataCard(
-                label = "Stabilized",
-                value = if (data.stabilized) "Yes" else "No",
-                color = if (data.stabilized) Color(0xFF4CAF50) else Color(0xFFF44336)
-            )
+            Column(modifier = Modifier.weight(0.6f)) {
+                data?.let {
+                    DataCard(label = "Channel", value = it.channel.toString())
+                    DataCard(label = "Voltage", value = "%.4f V".format(it.voltage))
+                    DataCard(label = "Current", value = "%.2f mA".format(it.current_ma))
+                    DataCard(label = "Direction", value = it.direction)
+                    DataCard(label = "Average Voltage", value = "%.4f V".format(it.average_voltage))
+                    DataCard(
+                        label = "Stabilized",
+                        value = if (it.stabilized) "Yes" else "No",
+                        color = if (it.stabilized) Color(0xFF4CAF50) else Color(0xFFF44336)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+            Text("Log", style = MaterialTheme.typography.titleMedium)
+            LogList(logs = logs, modifier = Modifier.weight(0.4f))
+        }
+    }
+}
+
+@Composable
+fun LogList(logs: List<String>, modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        shape = MaterialTheme.shapes.medium
+    ) {
+        LazyColumn(
+            modifier = Modifier.padding(8.dp),
+            contentPadding = PaddingValues(bottom = 8.dp)
+        ) {
+            items(logs) { log ->
+                Text(
+                    text = log,
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(vertical = 2.dp)
+                )
+            }
         }
     }
 }
@@ -106,15 +163,26 @@ fun MeasurementDisplay(data: MeasurementData?, onDisconnect: () -> Unit, onRun: 
 @Composable
 fun DataCard(label: String, value: String, color: Color = MaterialTheme.colorScheme.onSurface) {
     Card(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        )
     ) {
         Row(
-            modifier = Modifier.padding(16.dp).fillMaxWidth(),
+            modifier = Modifier
+                .padding(12.dp)
+                .fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text(label, fontWeight = FontWeight.Medium)
-            Text(value, fontWeight = FontWeight.Bold, color = color, fontSize = 18.sp)
+            Text(
+                value,
+                fontWeight = FontWeight.Bold,
+                color = color,
+                fontSize = 16.sp
+            )
         }
     }
 }
