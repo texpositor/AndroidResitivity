@@ -5,7 +5,6 @@ import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothSocket
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.withContext
@@ -36,6 +35,7 @@ class BluetoothService {
     // Command state
     private val isReadingChannel = AtomicBoolean(false)
     private var currentReadSequence = 0
+    private var initialJsonSent = false // Add this flag
 
     @SuppressLint("MissingPermission")
     suspend fun connect(device: BluetoothDevice): Boolean = withContext(Dispatchers.IO) {
@@ -48,6 +48,9 @@ class BluetoothService {
                 writer = PrintWriter(it.outputStream, true)
             }
 
+            // Reset the flag on new connection
+            initialJsonSent = false
+
             Log.d(TAG, "Connected to ${device.name}")
             return@withContext true
         } catch (e: IOException) {
@@ -57,9 +60,19 @@ class BluetoothService {
         }
     }
 
+    fun sendInitialJsonCommand() {
+        if (!initialJsonSent) {
+            val currentWriter = writer ?: return
+            currentWriter.println("JSON")
+            currentWriter.flush()
+            initialJsonSent = true
+            Log.d(TAG, "Sent initial JSON command")
+        }
+    }
+
     fun readChannels() {
         currentReadSequence = if (currentReadSequence >= 8) 1 else currentReadSequence + 1
-        
+
         val currentWriter = writer ?: return
         currentWriter.println("READ$currentReadSequence")
         currentWriter.flush()
@@ -107,5 +120,6 @@ class BluetoothService {
         reader = null
         isReadingChannel.set(false)
         currentReadSequence = 0
+        initialJsonSent = false // Reset flag
     }
 }

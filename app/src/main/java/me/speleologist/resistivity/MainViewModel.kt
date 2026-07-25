@@ -18,6 +18,7 @@ class MainViewModel : ViewModel() {
     val uiState: StateFlow<UiState> = _uiState
 
     private var dataJob: Job? = null
+    private var initialCommandSent = false // Add this flag
 
     data class UiState(
         val isConnected: Boolean = false,
@@ -41,6 +42,7 @@ class MainViewModel : ViewModel() {
             val success = bluetoothService.connect(device)
             if (success) {
                 _uiState.value = _uiState.value.copy(isConnected = true)
+                initialCommandSent = false // Reset flag
                 startDataCollection()
             } else {
                 _uiState.value = _uiState.value.copy(errorMessage = "Connection failed")
@@ -70,7 +72,14 @@ class MainViewModel : ViewModel() {
                     _uiState.value = _uiState.value.copy(logs = currentLogs)
                 }
             }
+            // Start the data loop
             bluetoothService.startDataLoop()
+
+            // Send initial JSON command only once after connection
+            if (!initialCommandSent) {
+                bluetoothService.sendInitialJsonCommand()
+                initialCommandSent = true
+            }
         }
     }
 
@@ -82,6 +91,7 @@ class MainViewModel : ViewModel() {
             latestData = null,
             logs = emptyList()
         )
+        initialCommandSent = false
     }
 
     override fun onCleared() {

@@ -105,35 +105,46 @@ fun MeasurementDisplay(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        if (data == null && logs.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator()
+        // Always show the UI components, even when no data is available
+        Column(modifier = Modifier.weight(0.6f)) {
+            // Show empty state or placeholders when no data
+            if (data == null) {
+                // Show a message that data is expected
+                Text(
+                    text = "Waiting for data from ESP32...",
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.padding(16.dp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                // Show empty cards or placeholders
+                DataCard(label = "Channel", value = "---")
+                DataCard(label = "Voltage", value = "--- V")
+                DataCard(label = "Current", value = "--- mA")
+                DataCard(label = "Direction", value = "---")
+                DataCard(label = "Average Voltage", value = "--- V")
+                DataCard(
+                    label = "Stabilized",
+                    value = "---",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else {
+                // Show actual data
+                DataCard(label = "Channel", value = data.channel.toString())
+                DataCard(label = "Voltage", value = "%.4f V".format(data.voltage))
+                DataCard(label = "Current", value = "%.2f mA".format(data.current_ma))
+                DataCard(label = "Direction", value = data.direction)
+                DataCard(label = "Average Voltage", value = "%.4f V".format(data.average_voltage))
+                DataCard(
+                    label = "Stabilized",
+                    value = if (data.stabilized) "Yes" else "No",
+                    color = if (data.stabilized) Color(0xFF4CAF50) else Color(0xFFF44336)
+                )
             }
-        } else {
-            Column(modifier = Modifier.weight(0.6f)) {
-                data?.let {
-                    DataCard(label = "Channel", value = it.channel.toString())
-                    DataCard(label = "Voltage", value = "%.4f V".format(it.voltage))
-                    DataCard(label = "Current", value = "%.2f mA".format(it.current_ma))
-                    DataCard(label = "Direction", value = it.direction)
-                    DataCard(label = "Average Voltage", value = "%.4f V".format(it.average_voltage))
-                    DataCard(
-                        label = "Stabilized",
-                        value = if (it.stabilized) "Yes" else "No",
-                        color = if (it.stabilized) Color(0xFF4CAF50) else Color(0xFFF44336)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-            Text("Log", style = MaterialTheme.typography.titleMedium)
-            LogList(logs = logs, modifier = Modifier.weight(0.4f))
         }
+
+        Spacer(modifier = Modifier.height(16.dp))
+        Text("Log", style = MaterialTheme.typography.titleMedium)
+        LogList(logs = logs, modifier = Modifier.weight(0.4f))
     }
 }
 
