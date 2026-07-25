@@ -4,12 +4,14 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class MeasurementData(
-    val channel: Int,
-    val voltage: Double,
-    val current_ma: Double,
-    val direction: String,
-    val stabilized: Boolean,
-    val average_voltage: Double
+    val type: String = "DATA",
+    val msg: String = "",
+    val channel: Int = 0,
+    val voltage: Double = 0.0,
+    val current_ma: Double = 0.0,
+    val direction: String = "FORWARD",
+    val stabilized: Boolean = false,
+    val average_voltage: Double = 0.0
 )
 
 // Added command/response types

@@ -58,68 +58,21 @@ class BluetoothService {
     }
 
     fun readChannels() {
-        if (!isReadingChannel.compareAndSet(false, true)) {
-            return // Already reading
-        }
-        currentReadSequence = 1
+        currentReadSequence = if (currentReadSequence >= 8) 1 else currentReadSequence + 1
+        
+        val currentWriter = writer ?: return
+        currentWriter.println("READ$currentReadSequence")
+        currentWriter.flush()
     }
 
     suspend fun startDataLoop() = withContext(Dispatchers.IO) {
-        val currentWriter = writer ?: return@withContext
         val currentReader = reader ?: return@withContext
 
         while (socket?.isConnected == true) {
             try {
-                val activeChannel = currentReadSequence
-
-                if (activeChannel in 1..8) {
-                    // Send READ command for current channel
-                    currentWriter.println("READ$activeChannel")
-                    currentWriter.flush()
-                    _logs.emit("Sent: READ$activeChannel")
-
-                    // Read responses until we get END for this channel
-                    var channelDone = false
-                    while (!channelDone && socket?.isConnected == true) {
-                        // Check if data is available before reading
-                        if (currentReader.ready()) {
-                            val line = currentReader.readLine()
-                            if (line != null && line.isNotBlank()) {
-                                if (line.startsWith("END:")) {
-                                    _logs.emit(line)
-                                    channelDone = true
-                                } else {
-                                    processLine(line)
-                                }
-                            }
-                        } else {
-                            // No data available, send JSON to check for updates
-                            currentWriter.println("JSON")
-                            currentWriter.flush()
-                            delay(100)
-                        }
-                    }
-
-                    if (activeChannel < 8) {
-                        currentReadSequence++
-                    } else {
-                        currentReadSequence = 0 // Complete
-                        isReadingChannel.set(false)
-                        _logs.emit("Channel scan complete.")
-                    }
-                } else {
-                    // Normal idle polling - get JSON updates
-                    currentWriter.println("JSON")
-                    currentWriter.flush()
-
-                    // Read any available data
-                    while (currentReader.ready()) {
-                        val line = currentReader.readLine()
-                        if (line != null && line.isNotBlank()) {
-                            processLine(line)
-                        }
-                    }
-                    delay(500)
+                val line = currentReader.readLine()
+                if (line != null && line.isNotBlank()) {
+                    processLine(line)
                 }
             } catch (e: IOException) {
                 Log.e(TAG, "Data loop error", e)
@@ -132,9 +85,11 @@ class BluetoothService {
     private suspend fun processLine(line: String) {
         try {
             val data = json.decodeFromString<MeasurementData>(line)
-            _measurements.emit(data)
+            _logs.emit("${data.type}: ${data.msg}")
+            if (data.type == "DATA") {
+                _measurements.emit(data)
+            }
         } catch (ignored: Exception) {
-            // Not JSON, emit as log
             _logs.emit(line)
         }
     }
