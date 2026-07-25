@@ -99,9 +99,9 @@ class BluetoothService {
         try {
             val data = json.decodeFromString<MeasurementData>(line)
             _logs.emit("${data.type}: ${data.msg}")
-            if (data.type == "DATA") {
-                _measurements.emit(data)
-            }
+
+            // Emit data updates for all valid measurement packets
+            _measurements.emit(data)
         } catch (ignored: Exception) {
             _logs.emit(line)
         }

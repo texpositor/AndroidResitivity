@@ -51,6 +51,7 @@ class MainViewModel : ViewModel() {
     }
 
     fun readChannels() {
+        _uiState.value = _uiState.value.copy(logs = emptyList())
         bluetoothService.readChannels()
     }
 
