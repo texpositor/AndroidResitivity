@@ -70,11 +70,9 @@ class BluetoothService {
         }
     }
 
-    fun readChannels() {
-        currentReadSequence = if (currentReadSequence >= 8) 1 else currentReadSequence + 1
-
+    fun readChannel(channel: Int) {
         val currentWriter = writer ?: return
-        currentWriter.println("READ$currentReadSequence")
+        currentWriter.println("READ$channel")
         currentWriter.flush()
     }
 

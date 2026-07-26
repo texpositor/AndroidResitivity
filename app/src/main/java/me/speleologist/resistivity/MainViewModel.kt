@@ -25,7 +25,8 @@ class MainViewModel : ViewModel() {
         val latestData: MeasurementData? = null,
         val pairedDevices: List<BluetoothDevice> = emptyList(),
         val logs: List<String> = emptyList(),
-        val errorMessage: String? = null
+        val errorMessage: String? = null,
+        val selectedChannel: Int = 1
     )
 
     @SuppressLint("MissingPermission")
@@ -50,9 +51,13 @@ class MainViewModel : ViewModel() {
         }
     }
 
+    fun setSelectedChannel(channel: Int) {
+        _uiState.value = _uiState.value.copy(selectedChannel = channel)
+    }
+
     fun readChannels() {
         _uiState.value = _uiState.value.copy(logs = emptyList())
-        bluetoothService.readChannels()
+        bluetoothService.readChannel(_uiState.value.selectedChannel)
     }
 
     private fun startDataCollection() {
@@ -61,6 +66,10 @@ class MainViewModel : ViewModel() {
             launch {
                 bluetoothService.measurements.collect { data ->
                     _uiState.value = _uiState.value.copy(latestData = data)
+                    if (data.type == "END") {
+                        val nextChannel = if (_uiState.value.selectedChannel >= 8) 1 else _uiState.value.selectedChannel + 1
+                        _uiState.value = _uiState.value.copy(selectedChannel = nextChannel)
+                    }
                 }
             }
             launch {

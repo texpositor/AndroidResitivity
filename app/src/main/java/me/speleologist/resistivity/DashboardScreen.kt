@@ -34,6 +34,8 @@ fun ResistivityDashboard(viewModel: MainViewModel, modifier: Modifier = Modifier
             MeasurementDisplay(
                 data = state.latestData,
                 logs = state.logs,
+                selectedChannel = state.selectedChannel,
+                onChannelSelected = { viewModel.setSelectedChannel(it) },
                 onDisconnect = { viewModel.disconnect() },
                 onRun = { viewModel.readChannels() }
             )
@@ -77,10 +79,78 @@ fun DeviceList(devices: List<BluetoothDevice>, onDeviceClick: (BluetoothDevice) 
 fun MeasurementDisplay(
     data: MeasurementData?,
     logs: List<String>,
+    selectedChannel: Int,
+    onChannelSelected: (Int) -> Unit,
     onDisconnect: () -> Unit,
     onRun: () -> Unit
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
+
+        // --- 1. Compact 2-Row Channel Selector ---
+        CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                // Row 1: CH 1 to 4
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    (1..4).forEach { channel ->
+                        FilterChip(
+                            selected = (channel == selectedChannel),
+                            onClick = { onChannelSelected(channel) },
+                            label = {
+                                Text(
+                                    text = "CH $channel",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(32.dp),
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                selectedLabelColor = MaterialTheme.colorScheme.onPrimary
+                            )
+                        )
+                    }
+                }
+
+                // Row 2: CH 5 to 8
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    (5..8).forEach { channel ->
+                        FilterChip(
+                            selected = (channel == selectedChannel),
+                            onClick = { onChannelSelected(channel) },
+                            label = {
+                                Text(
+                                    text = "CH $channel",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(32.dp),
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                selectedLabelColor = MaterialTheme.colorScheme.onPrimary
+                            )
+                        )
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // --- 2. Live Data Header & Action Buttons (Under the Chips) ---
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -103,21 +173,17 @@ fun MeasurementDisplay(
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
-        // Always show the UI components, even when no data is available
+        // --- 3. Measurement Data Section ---
         Column(modifier = Modifier.weight(0.6f)) {
-            // Show empty state or placeholders when no data
             if (data == null) {
-                // Show a message that data is expected
                 Text(
-                    text = "Waiting for data from ESP32...",
-                    style = MaterialTheme.typography.bodyLarge,
-                    modifier = Modifier.padding(16.dp),
+                    text = "Connected, press Run",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(vertical = 4.dp),
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                // Show empty cards or placeholders
-                DataCard(label = "Channel", value = "---")
                 DataCard(label = "Voltage", value = "--- V")
                 DataCard(label = "Current", value = "--- mA")
                 DataCard(label = "Direction", value = "---")
@@ -128,8 +194,6 @@ fun MeasurementDisplay(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             } else {
-                // Show actual data
-                DataCard(label = "Channel", value = data.channel.toString())
                 DataCard(label = "Voltage", value = "%.4f V".format(data.voltage))
                 DataCard(label = "Current", value = "%.2f mA".format(data.current_ma))
                 DataCard(label = "Direction", value = data.direction)
@@ -142,8 +206,11 @@ fun MeasurementDisplay(
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // --- 4. Log Section ---
         Text("Log", style = MaterialTheme.typography.titleMedium)
+        Spacer(modifier = Modifier.height(4.dp))
         LogList(logs = logs, modifier = Modifier.weight(0.4f))
     }
 }
