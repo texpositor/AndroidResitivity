@@ -1,17 +1,22 @@
 package me.speleologist.resistivity
 
 import android.annotation.SuppressLint
+import android.app.Application
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
 import android.content.Context
-import androidx.lifecycle.ViewModel
+import android.util.Log
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import java.io.File
+import java.io.FileOutputStream
 
-class MainViewModel : ViewModel() {
+class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val bluetoothService = BluetoothService()
 
     private val _uiState = MutableStateFlow(UiState())
@@ -83,7 +88,20 @@ class MainViewModel : ViewModel() {
                 }
             }
             // Start the data loop
-            bluetoothService.startDataLoop()
+            launch {
+                bluetoothService.startDataLoop()
+            }
+
+            // File logging
+            launch(Dispatchers.IO) {
+                val dataRegex = Regex("\"type\"\\s*:\\s*\"DATA\"", RegexOption.IGNORE_CASE)
+                bluetoothService.rawMessages.collect { line ->
+                    saveToFile("res_log.json", line)
+                    if (line.contains(dataRegex)) {
+                        saveToFile("res_data.json", line)
+                    }
+                }
+            }
 
             // Send initial JSON command only once after connection
             if (!initialCommandSent) {
@@ -102,6 +120,22 @@ class MainViewModel : ViewModel() {
             logs = emptyList()
         )
         initialCommandSent = false
+    }
+
+    private fun saveToFile(fileName: String, data: String) {
+        try {
+            val dir = getApplication<Application>().getExternalFilesDir(null)
+            if (dir != null && !dir.exists()) {
+                dir.mkdirs()
+            }
+            val file = File(dir, fileName)
+            FileOutputStream(file, true).use { output ->
+                output.write((data + "\n").toByteArray())
+            }
+            Log.d("Resistivity", "Saved to: ${file.absolutePath}")
+        } catch (e: Exception) {
+            Log.e("Resistivity", "Failed to save to $fileName", e)
+        }
     }
 
     override fun onCleared() {

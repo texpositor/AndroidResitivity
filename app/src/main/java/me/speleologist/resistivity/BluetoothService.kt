@@ -30,6 +30,12 @@ class BluetoothService {
     private val _logs = MutableSharedFlow<String>()
     val logs: SharedFlow<String> = _logs
 
+    private val _rawMessages = MutableSharedFlow<String>(
+        replay = 5,
+        extraBufferCapacity = 20
+    )
+    val rawMessages: SharedFlow<String> = _rawMessages
+
     private val json = Json { ignoreUnknownKeys = true }
 
     // Command state
@@ -83,6 +89,7 @@ class BluetoothService {
             try {
                 val line = currentReader.readLine()
                 if (line != null && line.isNotBlank()) {
+                    _rawMessages.emit(line)
                     processLine(line)
                 }
             } catch (e: IOException) {
