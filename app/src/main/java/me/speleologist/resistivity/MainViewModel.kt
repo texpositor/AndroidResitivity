@@ -15,9 +15,17 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import java.io.File
 import java.io.FileOutputStream
+import android.content.ContentUris
+import android.content.ContentValues
+import android.net.Uri
+import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
+
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val bluetoothService = BluetoothService()
+    private val fileUriCache = mutableMapOf<String, Uri>()
 
     private val _uiState = MutableStateFlow(UiState())
     val uiState: StateFlow<UiState> = _uiState
@@ -123,18 +131,58 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun saveToFile(fileName: String, data: String) {
+        val context = getApplication<Application>()
+        val relativePath = "${Environment.DIRECTORY_DOCUMENTS}/ResistivityData"
+
         try {
-            val dir = getApplication<Application>().getExternalFilesDir(null)
-            if (dir != null && !dir.exists()) {
-                dir.mkdirs()
+            val resolver = context.contentResolver
+            val contentUri = MediaStore.Files.getContentUri("external")
+
+            var fileUri = fileUriCache[fileName]
+
+            if (fileUri == null) {
+                // 1. Query MediaStore to check if the file already exists
+                val projection = arrayOf(MediaStore.MediaColumns._ID)
+                val selection = "${MediaStore.MediaColumns.DISPLAY_NAME} = ? AND ${MediaStore.MediaColumns.RELATIVE_PATH} = ?"
+                // Note: The relative path string in MediaStore must end with a trailing slash "/"
+                val selectionArgs = arrayOf(fileName, "$relativePath/")
+
+                resolver.query(contentUri, projection, selection, selectionArgs, null)?.use { cursor ->
+                    if (cursor.moveToFirst()) {
+                        // File exists, retrieve its unique ID and build its URI
+                        val idColumn = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns._ID)
+                        val id = cursor.getLong(idColumn)
+                        fileUri = ContentUris.withAppendedId(contentUri, id)
+                    }
+                }
+
+                // 2. If it doesn't exist, insert a new record
+                if (fileUri == null) {
+                    val contentValues = ContentValues().apply {
+                        put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+                        put(MediaStore.MediaColumns.MIME_TYPE, "text/plain")
+                        put(MediaStore.MediaColumns.RELATIVE_PATH, relativePath)
+                    }
+                    fileUri = resolver.insert(contentUri, contentValues)
+                }
+
+                if (fileUri != null) {
+                    fileUriCache[fileName] = fileUri!!
+                }
             }
-            val file = File(dir, fileName)
-            FileOutputStream(file, true).use { output ->
-                output.write((data + "\n").toByteArray())
+
+            // 3. Append data to the file URI
+            if (fileUri != null) {
+                // "wa" mode opens the stream for writing and appends to existing content
+                resolver.openOutputStream(fileUri, "wa")?.use { output ->
+                    output.write((data + "\n").toByteArray())
+                }
+                Log.d("Resistivity", "Successfully appended data to: $fileName")
+            } else {
+                Log.e("Resistivity", "Failed to retrieve or create file URI")
             }
-            Log.d("Resistivity", "Saved to: ${file.absolutePath}")
         } catch (e: Exception) {
-            Log.e("Resistivity", "Failed to save to $fileName", e)
+            Log.e("Resistivity", "Failed to save via MediaStore", e)
         }
     }
 
