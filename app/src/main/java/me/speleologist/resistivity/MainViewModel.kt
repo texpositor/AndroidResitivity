@@ -68,6 +68,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.value = _uiState.value.copy(selectedChannel = channel)
     }
 
+    fun sendManualPowerCommand(isOn: Boolean, channel: String) {
+        if (channel.isNotBlank()) {
+            val prefix = if (isOn) "ON" else "OFF"
+            bluetoothService.sendCommand("$prefix$channel")
+        }
+    }
+
     fun readChannels() {
         _uiState.value = _uiState.value.copy(logs = emptyList())
         bluetoothService.readChannel(_uiState.value.selectedChannel)

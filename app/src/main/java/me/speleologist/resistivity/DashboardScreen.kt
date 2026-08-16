@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -17,6 +18,11 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.text.input.ImeAction
 
 @Composable
 fun ResistivityDashboard(viewModel: MainViewModel, modifier: Modifier = Modifier) {
@@ -36,6 +42,7 @@ fun ResistivityDashboard(viewModel: MainViewModel, modifier: Modifier = Modifier
                 logs = state.logs,
                 selectedChannel = state.selectedChannel,
                 onChannelSelected = { viewModel.setSelectedChannel(it) },
+                onPowerCommand = { isOn, channel -> viewModel.sendManualPowerCommand(isOn, channel) },
                 onDisconnect = { viewModel.disconnect() },
                 onRun = { viewModel.readChannels() }
             )
@@ -81,9 +88,12 @@ fun MeasurementDisplay(
     logs: List<String>,
     selectedChannel: Int,
     onChannelSelected: (Int) -> Unit,
+    onPowerCommand: (Boolean, String) -> Unit,
     onDisconnect: () -> Unit,
     onRun: () -> Unit
 ) {
+    var manualChannelText by rememberSaveable { mutableStateOf("") }
+
     Column(modifier = Modifier.fillMaxSize()) {
 
         // --- 1. Compact 2-Row Channel Selector ---
@@ -176,12 +186,12 @@ fun MeasurementDisplay(
         Spacer(modifier = Modifier.height(8.dp))
 
         // --- 3. Measurement Data Section ---
-        Column(modifier = Modifier.weight(0.6f)) {
+        Column(modifier = Modifier.fillMaxWidth()) {
             if (data == null) {
                 Text(
                     text = "Connected, press Run",
                     style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(vertical = 4.dp),
+                    modifier = Modifier.padding(vertical = 2.dp),
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 DataCard(label = "Voltage", value = "--- V")
@@ -204,14 +214,84 @@ fun MeasurementDisplay(
                     color = if (data.stabilized) Color(0xFF4CAF50) else Color(0xFFF44336)
                 )
             }
-        }
 
-        Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(2.dp))
+
+            // --- Manual Power Controls ---
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer
+                )
+            ) {
+                Row(
+                    modifier = Modifier
+                        .padding(horizontal = 8.dp, vertical = 2.dp)
+                        .fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "CH # ",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        BasicTextField(
+                            value = manualChannelText,
+                            onValueChange = { manualChannelText = it },
+                            textStyle = LocalTextStyle.current.copy(
+                                fontSize = 14.sp,
+                                color = MaterialTheme.colorScheme.onSurface
+                            ),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Number,
+                                imeAction = ImeAction.Done
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+
+                    Button(
+                        onClick = {
+                            if (manualChannelText.isNotBlank()) {
+                                onPowerCommand(true, manualChannelText)
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF4CAF50)
+                        ),
+                        contentPadding = PaddingValues(horizontal = 12.dp),
+                        modifier = Modifier.height(36.dp)
+                    ) {
+                        Text("ON", fontSize = 12.sp)
+                    }
+
+                    Button(
+                        onClick = {
+                            if (manualChannelText.isNotBlank()) {
+                                onPowerCommand(false, manualChannelText)
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFF44336)
+                        ),
+                        contentPadding = PaddingValues(horizontal = 12.dp),
+                        modifier = Modifier.height(36.dp)
+                    ) {
+                        Text("OFF", fontSize = 12.sp)
+                    }
+                }
+            }
+        }
 
         // --- 4. Log Section ---
         Text("Log", style = MaterialTheme.typography.titleMedium)
-        Spacer(modifier = Modifier.height(4.dp))
-        LogList(logs = logs, modifier = Modifier.weight(0.4f))
+        LogList(logs = logs, modifier = Modifier.weight(1f))
     }
 }
 
@@ -243,23 +323,23 @@ fun DataCard(label: String, value: String, color: Color = MaterialTheme.colorSch
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp),
+            .padding(vertical = 2.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant
         )
     ) {
         Row(
             modifier = Modifier
-                .padding(12.dp)
+                .padding(8.dp)
                 .fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(label, fontWeight = FontWeight.Medium)
+            Text(label, fontWeight = FontWeight.Medium, fontSize = 14.sp)
             Text(
                 value,
                 fontWeight = FontWeight.Bold,
                 color = color,
-                fontSize = 16.sp
+                fontSize = 14.sp
             )
         }
     }

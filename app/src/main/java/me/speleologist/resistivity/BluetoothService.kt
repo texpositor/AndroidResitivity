@@ -82,6 +82,12 @@ class BluetoothService {
         currentWriter.flush()
     }
 
+    fun sendCommand(cmd: String) {
+        val currentWriter = writer ?: return
+        currentWriter.println(cmd)
+        currentWriter.flush()
+    }
+
     suspend fun startDataLoop() = withContext(Dispatchers.IO) {
         val currentReader = reader ?: return@withContext
 
