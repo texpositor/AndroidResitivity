@@ -11,19 +11,19 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
 import me.speleologist.resistivity.ui.theme.ResistivityTheme
 
 class MainActivity : ComponentActivity() {
     private val viewModel: MainViewModel by viewModels()
-
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -58,19 +58,31 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    if (hasPermissions) {
-                        ResistivityDashboard(
-                            viewModel = viewModel,
-                            modifier = Modifier.padding(innerPadding)
-                        )
-                    } else {
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text("Bluetooth permissions required")
+                val navController = rememberNavController()
+
+                if (hasPermissions) {
+                    NavHost(navController = navController, startDestination = "dashboard") {
+                        composable("dashboard") {
+                            ResistivityDashboard(
+                                viewModel = viewModel,
+                                navController = navController,
+                                modifier = Modifier.fillMaxSize()
+                            )
                         }
+                        composable("plot") {
+                            PlotScreen(
+                                viewModel = viewModel,
+                                navController = navController,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                    }
+                } else {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("Bluetooth permissions required")
                     }
                 }
             }

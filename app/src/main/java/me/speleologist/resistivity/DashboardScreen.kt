@@ -7,7 +7,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.ShowChart
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -16,45 +18,139 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextAlign
+import androidx.navigation.NavController
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.BasicTextField
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ResistivityDashboard(viewModel: MainViewModel, modifier: Modifier = Modifier) {
+fun ResistivityDashboard(
+    viewModel: MainViewModel,
+    navController: NavController,
+    modifier: Modifier = Modifier
+) {
     val state by viewModel.uiState.collectAsState()
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
-    Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
-        if (!state.isConnected) {
-            Text("Select a Device", style = MaterialTheme.typography.headlineMedium)
-            Spacer(modifier = Modifier.height(8.dp))
-            DeviceList(devices = state.pairedDevices) { device ->
-                viewModel.connectToDevice(device)
-            }
-        } else {
-            MeasurementDisplay(
-                data = state.latestData,
-                logs = state.logs,
-                selectedChannel = state.selectedChannel,
-                onChannelSelected = { viewModel.setSelectedChannel(it) },
-                onPowerCommand = { isOn, channel -> viewModel.sendManualPowerCommand(isOn, channel) },
-                onDisconnect = { viewModel.disconnect() },
-                onRun = { viewModel.readChannels() }
+    // Settings dialog state
+    var showSettingsDialog by remember { mutableStateOf(false) }
+    val mn by viewModel.mnSpacing.collectAsState()
+    val d by viewModel.electrodeSpacing.collectAsState()
+    val offset by viewModel.offset.collectAsState()
+
+    Scaffold(
+        modifier = modifier.fillMaxSize(),
+        topBar = {
+            TopAppBar(
+                title = { Text("Resistivity Controller") },
+                actions = {
+                    IconButton(onClick = { showSettingsDialog = true }) {
+                        Icon(Icons.Default.Settings, contentDescription = "Settings")
+                    }
+                    IconButton(onClick = { navController.navigate("plot") }) {
+                        Icon(Icons.Default.ShowChart, contentDescription = "Plot")
+                    }
+                }
             )
         }
+    ) { innerPadding ->
+        Column(modifier = Modifier.padding(innerPadding).padding(16.dp)) {
+            if (!state.isConnected) {
+                Text("Select a Device", style = MaterialTheme.typography.headlineMedium)
+                Spacer(modifier = Modifier.height(8.dp))
+                DeviceList(devices = state.pairedDevices) { device ->
+                    viewModel.connectToDevice(device)
+                }
+            } else {
+                MeasurementDisplay(
+                    data = state.latestData,
+                    logs = state.logs,
+                    selectedChannel = state.selectedChannel,
+                    onChannelSelected = { viewModel.setSelectedChannel(it) },
+                    onPowerCommand = { isOn, channel -> viewModel.sendManualPowerCommand(isOn, channel) },
+                    onDisconnect = { viewModel.disconnect() },
+                    onRun = { viewModel.readChannels() }
+                )
+            }
 
-        state.errorMessage?.let {
-            LaunchedEffect(it) {
-                Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
+            state.errorMessage?.let {
+                LaunchedEffect(it) {
+                    Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
+                }
             }
         }
     }
+
+    // ---- Settings Dialog ----
+    if (showSettingsDialog) {
+        var mnText by remember { mutableStateOf(mn.toString()) }
+        var dText by remember { mutableStateOf(d.toString()) }
+        var offsetText by remember { mutableStateOf(offset.toString()) }
+
+        AlertDialog(
+            onDismissRequest = { showSettingsDialog = false },
+            title = { Text("Electrode Settings") },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = mnText,
+                        onValueChange = { mnText = it },
+                        label = { Text("MN spacing (m)") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = dText,
+                        onValueChange = { dText = it },
+                        label = { Text("Electrode spacing d (m)") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = offsetText,
+                        onValueChange = { offsetText = it },
+                        label = { Text("Offset (m)") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val newMn = mnText.toFloatOrNull() ?: 2f
+                        val newD = dText.toFloatOrNull() ?: 2f
+                        val newOffset = offsetText.toFloatOrNull() ?: 1f
+                        scope.launch {
+                            viewModel.updateSettings(newMn, newD, newOffset)
+                        }
+                        showSettingsDialog = false
+                    }
+                ) {
+                    Text("Save")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showSettingsDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 }
+
+// (The rest of the file – DeviceList, MeasurementDisplay, LogList, DataCard – stays exactly as you have it.)
+// I'll include them for completeness but they are unchanged.
 
 @SuppressLint("MissingPermission")
 @Composable
@@ -95,14 +191,12 @@ fun MeasurementDisplay(
     var manualChannelText by rememberSaveable { mutableStateOf("") }
 
     Column(modifier = Modifier.fillMaxSize()) {
-
-        // --- 1. Compact 2-Row Channel Selector ---
+        // Channel selector (unchanged)
         CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                // Row 1: CH 1 to 4
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -128,8 +222,6 @@ fun MeasurementDisplay(
                         )
                     }
                 }
-
-                // Row 2: CH 5 to 8
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -160,7 +252,7 @@ fun MeasurementDisplay(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // --- 2. Live Data Header & Action Buttons (Under the Chips) ---
+        // Live Data Header & Buttons (unchanged)
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -185,7 +277,7 @@ fun MeasurementDisplay(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // --- 3. Measurement Data Section ---
+        // Measurement Data Section (unchanged)
         Column(modifier = Modifier.fillMaxWidth()) {
             if (data == null) {
                 Text(
@@ -217,7 +309,7 @@ fun MeasurementDisplay(
 
             Spacer(modifier = Modifier.height(2.dp))
 
-            // --- Manual Power Controls ---
+            // Manual Power Controls (unchanged)
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
@@ -289,7 +381,7 @@ fun MeasurementDisplay(
             }
         }
 
-        // --- 4. Log Section ---
+        // Log Section (unchanged)
         Text("Log", style = MaterialTheme.typography.titleMedium)
         LogList(logs = logs, modifier = Modifier.weight(1f))
     }

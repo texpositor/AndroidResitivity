@@ -14,7 +14,7 @@ data class MeasurementData(
     val average_voltage: Double = 0.0
 )
 
-// Added command/response types
+// Command/response types (unchanged)
 sealed class BluetoothCommand {
     data class ReadChannel(val channel: Int) : BluetoothCommand()
     object GetJson : BluetoothCommand()
@@ -33,3 +33,13 @@ data class CommandResponse(
 enum class ResponseType {
     DATA, END, ERROR, LOG
 }
+
+// NEW: Resistivity point for plotting
+@Serializable
+data class ResistivityPoint(
+    val x: Double,              // half AB spacing (offset + channel * d)
+    val rho: Double,            // apparent resistivity (Ωm)
+    val channel: Int,
+    val voltage: Double,
+    val currentMa: Double
+)
